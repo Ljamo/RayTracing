@@ -1,3 +1,6 @@
+#include "color.h"
+#include "vec3.h"
+
 #include <iostream>
 #include <SFML/Graphics.hpp>
 
@@ -18,19 +21,26 @@ int main()
 
      for (int y = height - 1; y >= 0; y--)
      {
+         std::clog << "\rScanlines remaining: " << (height - y) << ' ' << std::flush;
          for (int x = 0; x < width; x++)
          {
-             float r = static_cast<float>(x) / static_cast<float>(width);
-             float g = static_cast<float>(y) / static_cast<float>(height);
-             float b = 0.2;
-             int ir = static_cast<int>(255.99 * r);
-             int ig = static_cast<int>(255.99 * g);
-             int ib = static_cast<int>(255.99 * b);
+             // Calculate pixel color using vec3
+             color pixel_color(static_cast<double>(x) / (width - 1),
+                 static_cast<double>(y) / (height - 1),
+                 0.2);
 
              // Set the pixel color in the image
-             backgroundImage.setPixel(x, height - 1 - y, sf::Color(ir, ig, ib));
+             backgroundImage.setPixel(x, height - 1 - y, sf::Color(
+                 static_cast<sf::Uint8>(255.999 * pixel_color.x()),
+                 static_cast<sf::Uint8>(255.999 * pixel_color.y()),
+                 static_cast<sf::Uint8>(255.999 * pixel_color.z())
+             ));
+
+             //optional if you want to output the pixel colours (doesnt work)
+             //write_color(std::cout, pixel_color);
          }
      }
+     std::clog << "\rDone.                 \n";
 
      // Create a texture and sprite to display the image
      sf::Texture backgroundTexture;
