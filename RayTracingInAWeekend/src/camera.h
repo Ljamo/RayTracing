@@ -36,24 +36,16 @@ public:
             std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
             for (int i = 0; i < image_width; ++i)
             {
-                //ray r(center, ray_direction);
-
-                //Set the pixel color in the image
-                //vec3 pixel_color = ray_color(r, world);
-
                 color pixel_color(0, 0, 0);
                 for (int sample = 0; sample < samples_per_pixel; ++sample) {
                     ray r = get_ray(i, j);
                     pixel_color += ray_color(r, max_depth, world);
                 }
 
-                backgroundImage.setPixel(i, j, sf::Color(
-                    static_cast<sf::Uint8>(255.999 * pixel_color.x() / samples_per_pixel),
-                    static_cast<sf::Uint8>(255.999 * pixel_color.y() / samples_per_pixel),
-                    static_cast<sf::Uint8>(255.999 * pixel_color.z() / samples_per_pixel)
-                ));
-
+                sf::Color sfml_color = to_sfml_color(pixel_color, samples_per_pixel);
+                backgroundImage.setPixel(i, j, sfml_color);
             }
+
         }
         std::clog << "\rDone.                 \n";
 
@@ -150,8 +142,8 @@ private:
 
         if (world.hit(r, interval(0.001, infinity), rec))
         {
-            vec3 direction = random_on_hemisphere(rec.normal);
-            return 0.5 * ray_color(ray(rec.p, direction), depth-1, world);
+            vec3 direction = rec.normal + random_unit_vector();
+            return 0.7 * ray_color(ray(rec.p, direction), depth-1, world);
         }
 
         vec3 unit_direction = unit_vector(r.direction());
