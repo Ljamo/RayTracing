@@ -11,8 +11,8 @@
 #include <SFML/Graphics.hpp>
 
 // UNCOMMENT FOR ALTERNATIVE RENDERING LOOP
-//#include <thread>
-//#include <vector>
+#include <thread>
+#include <vector>
 
 class camera
 {
@@ -30,79 +30,157 @@ public:
     double defocus_angle = 0;
     double focus_dist = 10;
 
+    bool fastRender = false;
+
     void render(const hittable& world)
     {
-        initialize();
-
-        // Declare sf::Image before usage
-        sf::Image backgroundImage;
-        backgroundImage.create(image_width, image_height, sf::Color::Black);
-
-        std::cout << image_width << "px by " << image_height << "px\n";
-
-        sf::RenderWindow window(sf::VideoMode(800, 450), "Ray Tracer");
-
-        // Create a vertex array to hold the pixels
-        sf::VertexArray pixels(sf::Points, image_width * image_height);
-
-        std::cout << "\rRendering in real-time..." << std::endl;
-
-        // Add these lines for the update frequency
-        const int update_frequency = 10;  // Update window every 10 scanlines
-        int update_counter = 0;
-
-        for (int j = 0; j < image_height; ++j)
+        if (fastRender == false)
         {
-            std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
+            initialize();
 
-            for (int i = 0; i < image_width; ++i)
+            // Declare sf::Image before usage
+            sf::Image backgroundImage;
+            backgroundImage.create(image_width, image_height, sf::Color::Black);
+
+            std::cout << image_width << "px by " << image_height << "px\n";
+
+            sf::RenderWindow window(sf::VideoMode(image_width, image_height), "Ray Tracer");
+
+            // Create a vertex array to hold the pixels
+            sf::VertexArray pixels(sf::Points, image_width * image_height);
+
+            std::cout << "\rRendering in real-time..." << std::endl;
+
+            // Add these lines for the update frequency
+            const int update_frequency = 10;  // Update window every 10 scanlines
+            int update_counter = 0;
+
+            for (int j = 0; j < image_height; ++j)
             {
-                color pixel_color(0, 0, 0);
-                for (int sample = 0; sample < samples_per_pixel; ++sample) {
-                    ray r = get_ray(i, j);
-                    pixel_color += ray_color(r, max_depth, world);
+                std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
+
+                for (int i = 0; i < image_width; ++i)
+                {
+                    color pixel_color(0, 0, 0);
+                    for (int sample = 0; sample < samples_per_pixel; ++sample) {
+                        ray r = get_ray(i, j);
+                        pixel_color += ray_color(r, max_depth, world);
+                    }
+
+                    sf::Color sfml_color = to_sfml_color(pixel_color, samples_per_pixel);
+                    backgroundImage.setPixel(i, j, sfml_color);
+
+                    // Set the color of the corresponding pixel in the vertex array
+                    pixels[i + j * image_width].position = sf::Vector2f(i, j);
+                    pixels[i + j * image_width].color = sfml_color;
                 }
 
-                sf::Color sfml_color = to_sfml_color(pixel_color, samples_per_pixel);
-                backgroundImage.setPixel(i, j, sfml_color);
+                // Increment the update counter
+                update_counter++;
 
-                // Set the color of the corresponding pixel in the vertex array
-                pixels[i + j * image_width].position = sf::Vector2f(i, j);
-                pixels[i + j * image_width].color = sfml_color;
+                if (update_counter >= update_frequency) {
+                    // Clear the window and draw the vertex array
+                    window.clear();
+                    window.draw(pixels);
+                    window.display();
+
+                    // Reset the counter
+                    update_counter = 0;
+                }
             }
 
-            // Increment the update counter
-            update_counter++;
+            // After the loop, ensure to update the window with any remaining pixels
+            window.clear();
+            window.draw(pixels);
+            window.display();
 
-            if (update_counter >= update_frequency) {
-                // Clear the window and draw the vertex array
-                window.clear();
-                window.draw(pixels);
-                window.display();
+            std::clog << "\rDone.                 \n";
 
-                // Reset the counter
-                update_counter = 0;
-            }
-        }
-
-        // After the loop, ensure to update the window with any remaining pixels
-        window.clear();
-        window.draw(pixels);
-        window.display();
-
-        std::clog << "\rDone.                 \n";
-
-        // Main loop
-        while (window.isOpen())
-        {
-            // Handle events
-            sf::Event event;
-            while (window.pollEvent(event))
+            // Main loop
+            while (window.isOpen())
             {
-                if (event.type == sf::Event::Closed)
-                    window.close();
+                // Handle events
+                sf::Event event;
+                while (window.pollEvent(event))
+                {
+                    if (event.type == sf::Event::Closed)
+                        window.close();
+                }
             }
         }
+        else if (fastRender == true)
+        {
+            initialize();
+
+            // Declare sf::Image before usage
+            sf::Image backgroundImage;
+            backgroundImage.create(image_width, image_height, sf::Color::Black);
+
+            std::cout << image_width << "px by " << image_height << "px\n";
+
+            // create the window
+            std::cout << "\rWindow will open when calculation have completed " << std::endl;
+
+            std::vector<std::thread> threads;
+            const int num_threads = std::thread::hardware_concurrency();
+
+            for (int t = 0; t < num_threads; ++t)
+            {
+                threads.emplace_back([this, &world, t, num_threads, &backgroundImage]() {
+                    for (int j = t; j < image_height; j += num_threads)
+                    {
+                        std::clog << "\rScanlines remaining: " << (image_height - j) << ' ' << std::flush;
+                        for (int i = 0; i < image_width; ++i)
+                        {
+                            color pixel_color(0, 0, 0);
+                            for (int sample = 0; sample < samples_per_pixel; ++sample) {
+                                ray r = get_ray(i, j);
+                                pixel_color += ray_color(r, max_depth, world);
+                            }
+
+                            sf::Color sfml_color = to_sfml_color(pixel_color, samples_per_pixel);
+                            backgroundImage.setPixel(i, j, sfml_color);
+                        }
+                    }
+                    });
+            }
+
+            for (auto& thread : threads)
+            {
+                thread.join();
+            }
+
+            std::clog << "\rDone.                 \n";
+
+            sf::RenderWindow window(sf::VideoMode(800, 450), "Ray Tracer");
+
+            // Create a texture and sprite to display the image
+            sf::Texture backgroundTexture;
+            backgroundTexture.loadFromImage(backgroundImage);
+            sf::Sprite backgroundSprite(backgroundTexture);
+
+            // Main loop
+            while (window.isOpen())
+            {
+                // Handle events
+                sf::Event event;
+                while (window.pollEvent(event))
+                {
+                    if (event.type == sf::Event::Closed)
+                        window.close();
+                }
+
+                // Clear the window
+                window.clear();
+
+                // Draw the background sprite
+                window.draw(backgroundSprite);
+
+                // Display the contents of the window
+                window.display();
+            }
+        }
+        
     }
 
 
